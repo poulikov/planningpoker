@@ -16,14 +16,15 @@ Planning Poker is a real-time web application for agile sprint planning. It allo
 planningpoker/
 ├── frontend/          # React 18 + TypeScript SPA (Vite)
 ├── backend/           # Node.js + Express API + WebSocket server
-├── docker-compose.yml # PostgreSQL database setup
-└── .env.example       # Environment configuration template
+├── docker-compose.yml # PostgreSQL database setup (optional)
+├── .env.example       # Environment configuration template
+└── workdoc/           # Debug reports and documentation (not in git)
 ```
 
 ### Runtime Architecture
 - **Frontend:** Vite dev server on port 5173, proxied API calls to backend
 - **Backend:** Express HTTP server on port 3001 with Socket.io WebSocket
-- **Database:** SQLite (Prisma) - NOTE: schema shows SQLite, but docker-compose sets up PostgreSQL
+- **Database:** SQLite by default (Prisma), PostgreSQL optional via docker-compose
 - **Communication:** REST API for CRUD, Socket.io for real-time updates
 
 ## Technology Stack
@@ -38,7 +39,6 @@ planningpoker/
 | Zustand | State management |
 | Socket.io-client | Real-time communication |
 | Lucide React | Icon library |
-| Canvas-confetti | Visual effects |
 
 ### Backend
 | Technology | Purpose |
@@ -46,7 +46,8 @@ planningpoker/
 | Node.js + Express | HTTP server |
 | Socket.io | WebSocket real-time events |
 | Prisma ORM | Database access |
-| SQLite/PostgreSQL | Data persistence |
+| SQLite (default) | Data persistence |
+| PostgreSQL (optional) | Alternative database |
 | Zod | Input validation |
 | tsx | TypeScript execution in dev |
 
@@ -54,7 +55,10 @@ planningpoker/
 
 ### Prerequisites
 ```bash
-# Start database
+# Install dependencies
+npm install
+
+# Start database (optional - for PostgreSQL)
 docker-compose up -d
 
 # Setup environment
@@ -63,6 +67,7 @@ cp .env.example .env
 
 ### Backend (`cd backend`)
 ```bash
+npm install                # Install dependencies
 npm run dev              # Start dev server with hot reload (tsx watch)
 npm run build            # Compile TypeScript to dist/
 npm run start            # Run compiled production build
@@ -74,6 +79,7 @@ npm run lint             # ESLint check
 
 ### Frontend (`cd frontend`)
 ```bash
+npm install      # Install dependencies
 npm run dev      # Start Vite dev server (port 5173)
 npm run build    # Production build to dist/
 npm run preview  # Preview production build
@@ -169,12 +175,15 @@ Vote
 - Actions are defined inline in the store
 - Components use `useSessionStore(selector)` for subscriptions
 - `useSessionStore.getState()` used outside React for current values
+- **Note:** `setVotingState` supports both direct values and callback functions: `(votingState | (prev) => newState)`
+- **Deduplication:** Store has guards in `addParticipant` and `setParticipants` to prevent duplicate entries
 
 ### Socket.io Pattern
 - Singleton socket instance in `lib/socket.ts` (lazy initialization)
 - `useSocket.ts` hook manages all event listeners in one place
 - **CRITICAL:** Socket listeners use empty dependency array `[]` to prevent duplicate registrations
 - Use `useSessionStore.getState()` inside handlers to get current values without dependencies
+- **WARNING:** Never duplicate event handlers in the same useEffect (causes double event processing)
 
 ### WebSocket Events
 **Client → Server:**
@@ -195,9 +204,15 @@ Vote
 
 ### Styling Conventions
 - Tailwind CSS for all styling
+- **Glassmorphism design pattern:**
+  - Background: `bg-white/95 backdrop-blur-sm`
+  - Rounded: `rounded-xl`
+  - Shadow: `shadow-lg`
+  - Border: `border border-white/20`
 - Custom utility classes in `index.css`: `.card`, `.input`, `.btn-*`
 - `cn()` helper from `lib/utils.ts` for conditional class merging (clsx + tailwind-merge)
-- Color palette: primary (blue), secondary (indigo), with semantic colors for states
+- Color palette: primary (blue/indigo), semantic colors for states (green=success, amber=warning, red=danger)
+- Status badges with icons from Lucide React
 
 ### URL Structure
 Session URLs use query parameters:
@@ -208,22 +223,27 @@ Session URLs use query parameters:
 ## Testing and Debugging
 
 ### Documentation Files
-- `TESTING.md` - Manual testing scenarios and bug verification steps
-- `DEBUG.md` - Console logging guide for troubleshooting
-- `BUGFIXES.md` - History of fixed bugs with root cause analysis
-- `DEBUG_FIX.md` - Latest debugging additions
+- `workdoc/` - Directory containing debug reports (excluded from git)
+  - Debug logs and investigation reports
+  - Bug fix documentation
+  - Testing scenarios
 
 ### Debug Logging
-Extensive console.log statements added for debugging:
+Extensive console.log statements for debugging:
 - `[App] Render:` - Component state on each render
 - `[useSocket] *` - All WebSocket events
 - `[VotingArea] *` - Voting component lifecycle
 - `[Store] *` - State mutations
+- `[WS] *` - Backend WebSocket logs
 
 ### Known Issues and Fixes
 1. **Task Duplication:** Fixed by removing `participants.length` dependency from socket useEffect
 2. **UI Disappearing:** Fixed by adding `hasJoined` flag to prevent unintended lobby redirects
 3. **Duplicate Prevention:** Store has `addTask` guard that skips if task ID already exists
+4. **WebSocket Handler Duplication:** CRITICAL - All socket handlers were registered twice causing double event processing
+5. **VotingState Structure Bug:** Fixed nested votingState in votes_revealed handler (was creating state.votingState.votingState)
+6. **Participant Duplication:** Fixed by adding deduplication in setParticipants and addParticipant store methods
+7. **Syntax Error:** Fixed hanging code after votes_revealed handler in useSocket.ts
 
 ### Manual Testing Steps
 1. Create session at http://localhost:5173
@@ -237,8 +257,10 @@ Extensive console.log statements added for debugging:
 
 ### Required Variables (`.env`)
 ```bash
-# Backend
-DATABASE_URL="postgresql://planningpoker:planningpoker@localhost:5432/planningpoker?schema=public"
+# Backend (SQLite by default)
+DATABASE_URL="file:./dev.db"
+# For PostgreSQL (optional):
+# DATABASE_URL="postgresql://planningpoker:planningpoker@localhost:5432/planningpoker?schema=public"
 PORT=3001
 NODE_ENV=development
 
@@ -279,11 +301,12 @@ All config has sensible defaults for localhost development if env vars are missi
 
 ## Development Workflow
 
-1. Start database: `docker-compose up -d`
-2. Setup backend: `cd backend && npm install && npm run prisma:migrate`
-3. Start backend: `cd backend && npm run dev`
-4. Start frontend: `cd frontend && npm install && npm run dev`
-5. Open http://localhost:5173
+1. Install dependencies: `npm install` in both frontend and backend
+2. Start database (optional): `docker-compose up -d`
+3. Setup backend: `cd backend && npm run prisma:migrate`
+4. Start backend: `cd backend && npm run dev`
+5. Start frontend: `cd frontend && npm run dev`
+6. Open http://localhost:5173
 
 ## Important Implementation Details
 
@@ -300,3 +323,7 @@ Votes automatically reveal when:
 
 ### Session Recovery
 On page refresh, `App.tsx` fetches session data via REST API and rejoins via WebSocket automatically using URL parameters.
+
+### Database Choice
+- **SQLite:** Default, file-based, no additional setup required
+- **PostgreSQL:** Optional, requires `docker-compose up -d` and updating DATABASE_URL
