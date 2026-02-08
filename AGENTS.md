@@ -9,6 +9,19 @@ Planning Poker is a real-time web application for agile sprint planning. It allo
 **Primary Language:** Russian (documentation, comments)  
 **Code Language:** English (TypeScript/JavaScript)
 
+## ⚠️ CRITICAL RULES FOR AI AGENTS
+
+### 1. Git Workflow (MUST FOLLOW)
+- **NEVER** commit directly to `main`/`master` branch
+- **ALWAYS** create a feature branch: `git checkout -b feature/description`
+- **ALWAYS** commit to feature branch, push, and create Pull Request
+- **NEVER** merge your own PR - wait for approval
+
+### 2. Before Starting Work
+- Check which branch you're on: `git branch`
+- If on `main`, create and switch to feature branch first
+- Read relevant code sections before making changes
+
 ## Architecture
 
 ### High-Level Structure
@@ -300,6 +313,47 @@ All config has sensible defaults for localhost development if env vars are missi
 - Input validation via Zod schemas
 
 ## Development Workflow
+
+### Git Workflow (CRITICAL)
+
+**NEVER commit directly to `main` or `master` branch!**
+
+All changes must follow Feature Branch workflow:
+
+1. **Create a feature branch** from `main`:
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b feature/description-of-changes
+   # or
+   git checkout -b fix/description-of-bug
+   # or
+   git checkout -b refactor/description
+   ```
+
+2. **Make changes** and commit to your branch:
+   ```bash
+   git add .
+   git commit -m "Descriptive commit message"
+   ```
+
+3. **Push branch** to remote:
+   ```bash
+   git push origin feature/description-of-changes
+   ```
+
+4. **Create Pull Request** and wait for approval
+
+5. **Merge ONLY after approval** - never merge your own PR without review
+
+### Branch Naming Conventions
+- `feature/login-page` - New functionality
+- `fix/timer-bug` - Bug fixes
+- `refactor/socket-handlers` - Code refactoring
+- `update/readme` - Documentation updates
+- `style/voting-area` - UI/styling changes
+
+### Local Development Steps
 
 1. Install dependencies: `npm install` in both frontend and backend
 2. Start database (optional): `docker-compose up -d`
