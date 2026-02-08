@@ -64,3 +64,6 @@ coverage/
 *.tgz
 *.tar.gz
 *.zip
+
+# Documentation and reports
+workdoc/
