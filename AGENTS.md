@@ -324,11 +324,11 @@ All changes must follow Feature Branch workflow:
    ```bash
    git checkout main
    git pull origin main
-   git checkout -b feature/description-of-changes
+   git checkout -b feature-description-of-changes
    # or
-   git checkout -b fix/description-of-bug
+   git checkout -b fix-description-of-bug
    # or
-   git checkout -b refactor/description
+   git checkout -b refactor-description
    ```
 
 2. **Make changes** and commit to your branch:
@@ -347,11 +347,11 @@ All changes must follow Feature Branch workflow:
 5. **Merge ONLY after approval** - never merge your own PR without review
 
 ### Branch Naming Conventions
-- `feature/login-page` - New functionality
-- `fix/timer-bug` - Bug fixes
-- `refactor/socket-handlers` - Code refactoring
-- `update/readme` - Documentation updates
-- `style/voting-area` - UI/styling changes
+- `feature-login-page` - New functionality
+- `fix-timer-bug` - Bug fixes
+- `refactor-socket-handlers` - Code refactoring
+- `update-readme` - Documentation updates
+- `style-voting-area` - UI/styling changes
 
 ### Local Development Steps
 
