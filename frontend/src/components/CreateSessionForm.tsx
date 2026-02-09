@@ -4,6 +4,7 @@ import { Input } from './Input';
 import { Button } from './Button';
 import { useSessionStore } from '../store/sessionStore';
 import { config } from '../lib/config';
+import { setUserName } from '../lib/userId';
 
 export const CreateSessionForm = () => {
   const [sessionName, setSessionName] = useState('');
@@ -34,7 +35,11 @@ export const CreateSessionForm = () => {
       const session = await response.json();
       setSession(session);
 
-      window.history.pushState({}, '', `/?session=${session.id}&name=${encodeURIComponent(participantName)}`);
+      // Save the name for this session (for auto-fill in lobby)
+      setUserName(session.id, participantName.trim());
+      
+      // Don't add name to URL - user will enter it in the lobby
+      window.history.pushState({}, '', `/?session=${session.id}`);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to create session');
     } finally {

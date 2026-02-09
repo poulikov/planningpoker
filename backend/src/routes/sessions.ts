@@ -4,6 +4,9 @@ import { z } from 'zod';
 
 const router = Router();
 
+// Inactivity timeout: 2 minutes (same as in handlers)
+const INACTIVITY_TIMEOUT = 2 * 60 * 1000;
+
 const createSessionSchema = z.object({
   name: z.string().min(1, 'Session name is required'),
   votingTimeout: z.number().min(10).max(600).optional().default(120),
@@ -33,10 +36,19 @@ router.post('/', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    const cutoffTime = new Date(Date.now() - INACTIVITY_TIMEOUT);
+    
     const session = await prisma.session.findUnique({
       where: { id: req.params.id },
       include: {
-        participants: true,
+        participants: {
+          where: {
+            lastSeenAt: {
+              gte: cutoffTime
+            }
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
         tasks: {
           orderBy: { createdAt: 'asc' },
         },
