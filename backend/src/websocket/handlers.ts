@@ -3,10 +3,38 @@ import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
+// Inactivity timeout: 2 minutes
+const INACTIVITY_TIMEOUT = 2 * 60 * 1000;
+
+// Track last activity for each participant
+const lastActivityMap = new Map<string, Date>();
+
 export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaClient) {
   const timerMap = new Map<string, NodeJS.Timeout>();
 
-  socket.on('join_session', async ({ sessionId, participantName }: { sessionId: string; participantName: string }) => {
+  // Heartbeat handler
+  socket.on('ping', async () => {
+    const participantId = socket.data.participantId;
+    const sessionId = socket.data.sessionId;
+    
+    if (participantId) {
+      lastActivityMap.set(participantId, new Date());
+      
+      // Update lastSeenAt in database
+      try {
+        await prisma.participant.update({
+          where: { id: participantId },
+          data: { lastSeenAt: new Date() },
+        });
+      } catch (error) {
+        // Participant might have been deleted, ignore
+      }
+    }
+    
+    socket.emit('pong');
+  });
+
+  socket.on('join_session', async ({ sessionId, participantName, participantId }: { sessionId: string; participantName: string; participantId?: string }) => {
     try {
       const session = await prisma.session.findUnique({ where: { id: sessionId } });
       if (!session) {
@@ -14,36 +42,52 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
         return;
       }
 
-      let participant = await prisma.participant.findUnique({
-        where: {
-          sessionId_name: {
+      // Clean up inactive participants before joining
+      await cleanupInactiveParticipants(sessionId, io, prisma);
+
+      let participant = null;
+
+      // If participantId provided, try to find existing participant by clientId
+      if (participantId) {
+        participant = await prisma.participant.findFirst({
+          where: {
             sessionId,
-            name: participantName,
+            clientId: participantId,
           },
-        },
-      });
+        });
+      }
 
       if (!participant) {
+        // Create new participant
         participant = await prisma.participant.create({
           data: {
             sessionId,
             name: participantName,
+            clientId: participantId || undefined,
           },
         });
       } else {
+        // Update existing participant's lastSeenAt and name (in case they changed it)
         await prisma.participant.update({
           where: { id: participant.id },
-          data: { lastSeenAt: new Date() },
+          data: { 
+            lastSeenAt: new Date(),
+            name: participantName,
+          },
         });
       }
+
+      // Track activity
+      lastActivityMap.set(participant.id, new Date());
 
       socket.join(sessionId);
       socket.data.sessionId = sessionId;
       socket.data.participantId = participant.id;
+      socket.data.participantName = participantName;
 
       io.to(sessionId).emit('participant_joined', participant);
 
-      const participants = await prisma.participant.findMany({ where: { sessionId } });
+      const participants = await getActiveParticipants(sessionId, prisma);
       io.to(sessionId).emit('participants_updated', participants);
 
       logger.info(`Participant ${participantName} joined session ${sessionId}`);
@@ -70,6 +114,9 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
     try {
       logger.info(`[WS] ★★★ start_voting received from participant: ${socket.data.participantName} for task: ${taskId} in session: ${sessionId}`);
       
+      // Clean up inactive participants before starting voting
+      await cleanupInactiveParticipants(sessionId, io, prisma);
+      
       const timeout = 120;
 
       await prisma.session.update({
@@ -85,7 +132,9 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
       await prisma.vote.deleteMany({ where: { taskId } });
 
       logger.info(`[WS] Emitting voting_started to session ${sessionId}`);
-      io.to(sessionId).emit('voting_started', { taskId, timeout });
+      
+      const activeParticipants = await getActiveParticipants(sessionId, prisma);
+      io.to(sessionId).emit('voting_started', { taskId, timeout, participantsCount: activeParticipants.length });
 
       let remainingTime = timeout;
       const timer = setInterval(() => {
@@ -95,7 +144,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
         if (remainingTime <= 0) {
           clearInterval(timer);
           timerMap.delete(taskId);
-          revealVotes(sessionId, taskId, prisma);
+          revealVotes(sessionId, taskId, prisma, io);
         }
       }, 1000);
 
@@ -112,6 +161,11 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
     try {
       const participantId = socket.data.participantId;
       const sessionId = socket.data.sessionId;
+
+      // Update activity
+      if (participantId) {
+        lastActivityMap.set(participantId, new Date());
+      }
 
       const existingVote = await prisma.vote.findUnique({
         where: {
@@ -134,9 +188,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
       }
 
       const votes = await prisma.vote.findMany({ where: { taskId } });
-      const participants = await prisma.participant.findMany({
-        where: { sessionId },
-      });
+      const participants = await getActiveParticipants(sessionId, prisma);
 
       logger.info(`[WS] Vote submitted for task ${taskId}: votes=${votes.length}, participants=${participants.length}`);
 
@@ -154,7 +206,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
           clearInterval(timer);
           timerMap.delete(taskId);
         }
-        revealVotes(sessionId, taskId, prisma);
+        revealVotes(sessionId, taskId, prisma, io);
       }
 
       logger.info(`Vote submitted for task ${taskId}`);
@@ -172,7 +224,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
         clearInterval(timer);
         timerMap.delete(taskId);
       }
-      revealVotes(sessionId, taskId, prisma);
+      revealVotes(sessionId, taskId, prisma, io);
     } catch (error) {
       logger.error('Error revealing votes:', error);
       socket.emit('error', { message: 'Failed to reveal votes' });
@@ -211,25 +263,128 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
     }
   });
 
-  socket.on('disconnecting', async () => {
+  socket.on('disconnect', async () => {
     const sessionId = socket.data.sessionId;
     const participantId = socket.data.participantId;
 
     if (sessionId && participantId) {
-      await prisma.participant.update({
-        where: { id: participantId },
-        data: { lastSeenAt: new Date() },
-      });
-
+      try {
+        // Delete participant's votes first (to not block voting)
+        await prisma.vote.deleteMany({
+          where: { participantId }
+        });
+        
+        // Remove participant
+        await prisma.participant.delete({
+          where: { id: participantId }
+        });
+        
+        logger.info(`Participant ${participantId} and their votes removed from session ${sessionId}`);
+        
+        // Check if there's active voting and update counts
+        const session = await prisma.session.findUnique({
+          where: { id: sessionId },
+          include: { tasks: { where: { status: 'voting' } } }
+        });
+        
+        if (session && session.tasks.length > 0) {
+          const currentTask = session.tasks[0];
+          const votes = await prisma.vote.findMany({ where: { taskId: currentTask.id } });
+          const activeParticipants = await getActiveParticipants(sessionId, prisma);
+          
+          // Notify about updated vote count
+          io.to(sessionId).emit('vote_received', {
+            taskId: currentTask.id,
+            participantId,
+            votesCount: votes.length,
+            participantsCount: activeParticipants.length,
+          });
+          
+          // Check if all remaining participants voted
+          if (votes.length === activeParticipants.length && activeParticipants.length > 0) {
+            logger.info(`[WS] All remaining participants voted after disconnect, revealing votes`);
+            const timer = timerMap.get(currentTask.id);
+            if (timer) {
+              clearInterval(timer);
+              timerMap.delete(currentTask.id);
+            }
+            revealVotes(sessionId, currentTask.id, prisma, io);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Error removing participant ${participantId}:`, error);
+      }
+      
+      lastActivityMap.delete(participantId);
+      
+      // Notify others that participant left
       io.to(sessionId).emit('participant_left', { participantId });
-      logger.info(`Participant ${participantId} left session ${sessionId}`);
+      
+      // Update participants list for everyone
+      const activeParticipants = await getActiveParticipants(sessionId, prisma);
+      io.to(sessionId).emit('participants_updated', activeParticipants);
     }
   });
 }
 
-async function revealVotes(sessionId: string, taskId: string, prismaClient: PrismaClient) {
-  const { io } = await import('../index');
+// Helper function to get active participants (not timed out)
+async function getActiveParticipants(sessionId: string, prisma: PrismaClient) {
+  const cutoffTime = new Date(Date.now() - INACTIVITY_TIMEOUT);
+  
+  const participants = await prisma.participant.findMany({
+    where: { 
+      sessionId,
+      lastSeenAt: {
+        gte: cutoffTime
+      }
+    },
+    orderBy: { joinedAt: 'asc' },
+  });
+  
+  return participants;
+}
 
+// Clean up inactive participants
+async function cleanupInactiveParticipants(sessionId: string, io: Server, prisma: PrismaClient) {
+  try {
+    const cutoffTime = new Date(Date.now() - INACTIVITY_TIMEOUT);
+    
+    // Find inactive participants
+    const inactiveParticipants = await prisma.participant.findMany({
+      where: {
+        sessionId,
+        lastSeenAt: {
+          lt: cutoffTime
+        }
+      }
+    });
+    
+    if (inactiveParticipants.length > 0) {
+      logger.info(`[Cleanup] Removing ${inactiveParticipants.length} inactive participants from session ${sessionId}`);
+      
+      // Delete inactive participants
+      for (const participant of inactiveParticipants) {
+        await prisma.participant.delete({
+          where: { id: participant.id }
+        });
+        
+        // Notify others
+        io.to(sessionId).emit('participant_left', { participantId: participant.id });
+        
+        // Clean up from activity map
+        lastActivityMap.delete(participant.id);
+      }
+      
+      // Send updated participants list
+      const activeParticipants = await getActiveParticipants(sessionId, prisma);
+      io.to(sessionId).emit('participants_updated', activeParticipants);
+    }
+  } catch (error) {
+    logger.error('[Cleanup] Error cleaning up inactive participants:', error);
+  }
+}
+
+async function revealVotes(sessionId: string, taskId: string, prismaClient: PrismaClient, io: Server) {
   logger.info(`[WS] Revealng votes for task ${taskId}`);
 
   const votes = await prismaClient.vote.findMany({
@@ -243,3 +398,6 @@ async function revealVotes(sessionId: string, taskId: string, prismaClient: Pris
 
   io.to(sessionId).emit('votes_revealed', { taskId, votes });
 }
+
+// Export for use in periodic cleanup job
+export { cleanupInactiveParticipants, getActiveParticipants, lastActivityMap, INACTIVITY_TIMEOUT };

@@ -157,9 +157,9 @@ export const useSocket = () => {
     };
   }, []);
 
-  const joinSession = useCallback((sessionId: string, participantName: string) => {
+  const joinSession = useCallback((sessionId: string, participantName: string, participantId?: string) => {
     const socket = getSocket();
-    socket.emit('join_session', { sessionId, participantName });
+    socket.emit('join_session', { sessionId, participantName, participantId });
   }, []);
 
   const createTask = useCallback((sessionId: string, title: string, description?: string) => {

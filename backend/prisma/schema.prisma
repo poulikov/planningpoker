@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -40,14 +40,15 @@ model Participant {
   id              String       @id @default(uuid())
   name            String
   sessionId       String
+  clientId        String?      // Optional ID from client for reconnection
   joinedAt        DateTime     @default(now())
   lastSeenAt      DateTime     @default(now())
 
   session         Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   votes           Vote[]
 
-  @@unique([sessionId, name])
   @@index([sessionId])
+  @@index([clientId])
 }
 
 model Vote {

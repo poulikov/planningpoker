@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
 import { useSocket } from './hooks/useSocket';
 import { CreateSessionForm } from './components/CreateSessionForm';
@@ -8,20 +8,36 @@ import { TaskList } from './components/TaskList';
 import { ParticipantsList } from './components/ParticipantsList';
 import { VotingArea } from './components/VotingArea';
 import { Task } from './types';
+import { config } from './lib/config';
+import { getUserId, getUserName, setUserId, setUserName } from './lib/userId';
 
 function App() {
-  const { session, participants, tasks, votes, currentTask, setSession, setTasks, error } = useSessionStore();
+  const { session, votes, currentTask, setSession, setTasks, error, isConnected } = useSessionStore();
   const { disconnect, joinSession } = useSocket();
   const hasAutoJoined = useRef(false);
-  const hasJoinedSocket = useRef(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isJoining, setIsJoining] = useState(false);
+
+  // Get URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionId = urlParams.get('session');
+  const urlName = urlParams.get('name');
+  const urlUserId = urlParams.get('pid'); // participant ID
+
+  console.log('[App] Initial render:', { 
+    sessionId, 
+    urlName,
+    urlUserId,
+    fullUrl: window.location.href,
+    search: window.location.search 
+  });
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session');
-    const participantName = urlParams.get('name');
+    console.log('[App] useEffect triggered, sessionId:', sessionId);
 
     if (sessionId) {
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/sessions/${sessionId}`)
+      setIsLoading(true);
+      fetch(`${config.apiBaseUrl}/api/sessions/${sessionId}`)
         .then((res) => {
           if (!res.ok) {
             if (res.status === 404) {
@@ -36,54 +52,82 @@ function App() {
           setSession(data);
           setTasks(data.tasks || []);
 
-          if (participantName && !hasAutoJoined.current) {
+          // Auto-join if we have both name and userId in URL
+          if (urlName && urlUserId && !hasAutoJoined.current) {
+            console.log('[App] Auto-joining with name and userId from URL:', { urlName, urlUserId });
             hasAutoJoined.current = true;
-            setTimeout(() => {
-              joinSession(data.id, decodeURIComponent(participantName));
-              hasJoinedSocket.current = true;
-            }, 100);
-          }
-
-          if (!participantName || hasAutoJoined.current) {
-            const currentState = useSessionStore.getState();
-            console.log('[App] Checking if we need to clear state. Current state:', {
-              hasVotingState: !!currentState.votingState,
-              hasVotingTaskId: !!currentState.votingState?.taskId,
-              hasCurrentTask: !!currentState.currentTask,
-            });
+            setIsJoining(true);
             
-            if (!currentState.votingState || !currentState.currentTask) {
-              console.log('[App] Clearing state on session load');
-              useSessionStore.setState({
-                currentTask: null,
-                votingState: null,
-                votes: [],
-                myVote: null,
-              });
+            // Save to localStorage for consistency
+            setUserId(sessionId, urlUserId);
+            setUserName(sessionId, decodeURIComponent(urlName));
+            
+            setTimeout(() => {
+              joinSession(data.id, decodeURIComponent(urlName), urlUserId);
+            }, 100);
+          } 
+          // Also auto-join if we have saved credentials in localStorage (for old links)
+          else {
+            const savedUserId = getUserId(sessionId);
+            const savedName = getUserName(sessionId);
+            
+            if (savedName && savedUserId && !hasAutoJoined.current) {
+              console.log('[App] Auto-joining from localStorage:', { savedName, savedUserId });
+              hasAutoJoined.current = true;
+              setIsJoining(true);
+              
+              // Update URL to include the credentials
+              const newUrl = `/?session=${sessionId}&pid=${savedUserId}&name=${encodeURIComponent(savedName)}`;
+              window.history.replaceState({}, '', newUrl);
+              
+              setTimeout(() => {
+                joinSession(data.id, savedName, savedUserId);
+              }, 100);
             } else {
-              console.log('[App] Not clearing state - votingState or currentTask already exists');
+              console.log('[App] No auto-join:', { urlName, urlUserId, hasAutoJoined: hasAutoJoined.current });
             }
           }
+
+          setIsLoading(false);
         })
         .catch((error) => {
           console.error('[App] Failed to fetch session:', error);
           useSessionStore.setState({ error: error.message || 'Failed to load session' });
+          setIsLoading(false);
         });
+    } else {
+      setIsLoading(false);
     }
 
     return () => {
       disconnect();
     };
-  }, []);
+  }, []); // Run only once on mount
+
+  // Track connection status
+  useEffect(() => {
+    console.log('[App] Connection status changed:', { isConnected, isJoining });
+    if (isConnected && isJoining) {
+      setIsJoining(false);
+    }
+  }, [isConnected, isJoining]);
 
   const handleTaskSelect = (task: Task) => {
     useSessionStore.setState({ currentTask: task });
   };
 
-  console.log('[App] Render:', { session: !!session, participants: participants.length, currentTask: !!currentTask, error: !!error });
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
-    console.error('[App] Showing error screen:', error);
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-6 max-w-md">
@@ -105,40 +149,63 @@ function App() {
     return <CreateSessionForm />;
   }
 
-  console.log('[App] Session exists, checking join status:', { hasJoined: hasJoinedSocket.current, participants: participants.length });
+  // SIMPLE LOGIC:
+  // - If name AND userId are in URL -> auto-join or show main screen
+  // - If NO name or NO userId in URL -> show lobby
+  
+  console.log('[App] Render decision:', { 
+    urlName, 
+    urlUserId,
+    isConnected, 
+    isJoining,
+    hasAutoJoined: hasAutoJoined.current 
+  });
 
-  if (!hasJoinedSocket.current && participants.length === 0) {
-    console.log('[App] Showing SessionLobby');
-    return <SessionLobby />;
+  // Has name and userId in URL - should be auto-joining or already joined
+  if (urlName && urlUserId) {
+    if (isConnected) {
+      console.log('[App] Showing main screen - connected with credentials in URL');
+      return (
+        <div className="min-h-screen p-4 md:p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-white mb-2">{session.name}</h1>
+              <p className="text-white/80 text-sm">
+                Share: <span className="font-mono bg-white/20 px-2 py-1 rounded">
+                  {window.location.origin}/?session={session.id}
+                </span>
+              </p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
+                <ParticipantsList votes={votes} />
+                <TaskForm />
+              </div>
+              <div className="lg:col-span-2 space-y-6">
+                <VotingArea task={currentTask} />
+                <TaskList onTaskSelect={handleTaskSelect} />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      // Still connecting
+      console.log('[App] Showing connecting screen - credentials in URL but not connected yet');
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p>Connecting as {decodeURIComponent(urlName)}...</p>
+          </div>
+        </div>
+      );
+    }
   }
 
-  console.log('[App] Showing main session screen');
-  return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">{session.name}</h1>
-          <p className="text-white/80">
-            Share this link: <span className="font-mono bg-white/20 px-2 py-1 rounded">
-              {window.location.href.split('&')[0]}
-            </span>
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="space-y-6">
-            <ParticipantsList votes={votes} />
-            <TaskForm />
-          </div>
-
-          <div className="lg:col-span-2 space-y-6">
-            <VotingArea task={currentTask} />
-            <TaskList onTaskSelect={handleTaskSelect} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // No credentials in URL - show lobby
+  console.log('[App] Showing SessionLobby - no credentials in URL');
+  return <SessionLobby />;
 }
 
 export default App;
