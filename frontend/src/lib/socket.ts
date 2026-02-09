@@ -5,8 +5,11 @@ let socket: Socket | null = null;
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(config.wsUrl, {
-      transports: ['websocket'],
+    // In production with nginx proxy, use current host (empty string)
+    // In development, use configured wsUrl
+    const wsUrl = config.wsUrl || window.location.host;
+    socket = io(wsUrl, {
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,

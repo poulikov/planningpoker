@@ -3,6 +3,7 @@ import { Card } from './Card';
 import { Input } from './Input';
 import { Button } from './Button';
 import { useSessionStore } from '../store/sessionStore';
+import { config } from '../lib/config';
 
 export const CreateSessionForm = () => {
   const [sessionName, setSessionName] = useState('');
@@ -20,7 +21,7 @@ export const CreateSessionForm = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/sessions`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: sessionName, votingTimeout }),

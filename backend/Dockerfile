@@ -1,0 +1,28 @@
+FROM node:20-alpine
+
+# Install dependencies for Prisma
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies
+RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Expose port
+EXPOSE 3001
+
+# Start the application (with db push for PostgreSQL)
+CMD sh -c "npx prisma db push --accept-data-loss && npm start"

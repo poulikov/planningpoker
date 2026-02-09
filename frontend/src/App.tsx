@@ -8,9 +8,10 @@ import { TaskList } from './components/TaskList';
 import { ParticipantsList } from './components/ParticipantsList';
 import { VotingArea } from './components/VotingArea';
 import { Task } from './types';
+import { config } from './lib/config';
 
 function App() {
-  const { session, participants, tasks, votes, currentTask, setSession, setTasks, error } = useSessionStore();
+  const { session, participants, votes, currentTask, setSession, setTasks, error } = useSessionStore();
   const { disconnect, joinSession } = useSocket();
   const hasAutoJoined = useRef(false);
   const hasJoinedSocket = useRef(false);
@@ -21,7 +22,7 @@ function App() {
     const participantName = urlParams.get('name');
 
     if (sessionId) {
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/sessions/${sessionId}`)
+      fetch(`${config.apiBaseUrl}/api/sessions/${sessionId}`)
         .then((res) => {
           if (!res.ok) {
             if (res.status === 404) {

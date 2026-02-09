@@ -16,16 +16,25 @@ const prisma = new PrismaClient();
 const app = express();
 const httpServer = createServer(app);
 
+const isProd = process.env.NODE_ENV === 'production';
+const PORT = process.env.PORT || 3001;
+
+// CORS configuration
+// In production, allow all origins (nginx handles the proxy)
+// In development, allow the dev server
+const corsOrigin = isProd ? '*' : (process.env.VITE_API_URL || 'http://localhost:5173');
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.VITE_API_URL || 'http://localhost:5173',
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
   },
 });
 
-const PORT = process.env.PORT || 3001;
-
-app.use(cors());
+app.use(cors({
+  origin: corsOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/health', (req: Request, res: Response) => {
