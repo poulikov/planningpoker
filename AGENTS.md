@@ -13,7 +13,7 @@ Planning Poker is a real-time web application for agile sprint planning. It allo
 
 ### 1. Git Workflow (MUST FOLLOW)
 - **NEVER** commit directly to `main`/`master` branch
-- **ALWAYS** create a feature branch: `git checkout -b feature/description`
+- **ALWAYS** create a feature branch: `git checkout -b feature-description`
 - **ALWAYS** commit to feature branch, push, and create Pull Request
 - **NEVER** merge your own PR - wait for approval
 
@@ -324,11 +324,11 @@ All changes must follow Feature Branch workflow:
    ```bash
    git checkout main
    git pull origin main
-   git checkout -b feature/description-of-changes
+   git checkout -b feature-description-of-changes
    # or
-   git checkout -b fix/description-of-bug
+   git checkout -b fix-description-of-bug
    # or
-   git checkout -b refactor/description
+   git checkout -b refactor-description
    ```
 
 2. **Make changes** and commit to your branch:
@@ -339,7 +339,7 @@ All changes must follow Feature Branch workflow:
 
 3. **Push branch** to remote:
    ```bash
-   git push origin feature/description-of-changes
+   git push origin feature-description-of-changes
    ```
 
 4. **Create Pull Request** and wait for approval
@@ -347,11 +347,11 @@ All changes must follow Feature Branch workflow:
 5. **Merge ONLY after approval** - never merge your own PR without review
 
 ### Branch Naming Conventions
-- `feature/login-page` - New functionality
-- `fix/timer-bug` - Bug fixes
-- `refactor/socket-handlers` - Code refactoring
-- `update/readme` - Documentation updates
-- `style/voting-area` - UI/styling changes
+- `feature-login-page` - New functionality
+- `fix-timer-bug` - Bug fixes
+- `refactor-socket-handlers` - Code refactoring
+- `update-readme` - Documentation updates
+- `style-voting-area` - UI/styling changes
 
 ### Local Development Steps
 

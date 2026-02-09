@@ -1,14 +1,22 @@
-import { memo } from 'react';
-import { Task, StoryPoint } from '../types';
+import { memo, useMemo } from 'react';
+import { Task, StoryPoint, Vote } from '../types';
 import { VoteCard } from './VoteCard';
 import { Timer } from './Timer';
 import { Button } from './Button';
 import { useSessionStore, parseStoryPointsScale } from '../store/sessionStore';
 import { useSocket } from '../hooks/useSocket';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export const VotingArea = memo(({ task }: { task: Task | null }) => {
   const { votingState, myVote, votes, session } = useSessionStore();
   const { startVoting, submitVote, revealVotes, resetVoting, completeTask } = useSocket();
+
+  // Проверяем, разошлись ли оценки (есть ли разные значения)
+  const hasDiverged = useMemo(() => {
+    if (!votes || votes.length === 0) return false;
+    const uniqueValues = new Set(votes.map((vote: Vote) => vote.value));
+    return uniqueValues.size > 1;
+  }, [votes]);
 
   const scale = session ? parseStoryPointsScale(session.storyPointsScale) : ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'] as StoryPoint[];
 
@@ -120,7 +128,22 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2 justify-center">
+          {hasDiverged && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-amber-800 font-medium">
+                    Оценки разошлись!
+                  </p>
+                  <p className="text-amber-700 text-sm mt-1">
+                    Участники выбрали разные значения. Можно перезапустить голосование для обсуждения или выбрать итоговую оценку.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 justify-center mb-4">
             <p className="w-full text-center text-gray-600 mb-2">Select final story points:</p>
             {scale.map((value) => (
               <Button
@@ -132,6 +155,16 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
                 {value}
               </Button>
             ))}
+          </div>
+          <div className="flex gap-2 justify-center">
+            <Button 
+              onClick={handleResetVoting} 
+              variant="secondary"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Перезапустить голосование
+            </Button>
           </div>
         </div>
       ) : (
