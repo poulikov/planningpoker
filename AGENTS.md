@@ -13,7 +13,7 @@ Planning Poker is a real-time web application for agile sprint planning. It allo
 
 ### 1. Git Workflow (MUST FOLLOW)
 - **NEVER** commit directly to `main`/`master` branch
-- **ALWAYS** create a feature branch: `git checkout -b feature/description`
+- **ALWAYS** create a feature branch: `git checkout -b feature-description`
 - **ALWAYS** commit to feature branch, push, and create Pull Request
 - **NEVER** merge your own PR - wait for approval
 
@@ -339,7 +339,7 @@ All changes must follow Feature Branch workflow:
 
 3. **Push branch** to remote:
    ```bash
-   git push origin feature/description-of-changes
+   git push origin feature-description-of-changes
    ```
 
 4. **Create Pull Request** and wait for approval
