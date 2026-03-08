@@ -1,7 +1,8 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, disconnectSocket } from '../lib/socket';
 import { useSessionStore } from '../store/sessionStore';
-import type { VotingState } from '../types';
+import { getAuthorId } from '../lib/userId';
+import type { VotingState, StoryPoint } from '../types';
 
 export const useSocket = () => {
   const {
@@ -15,6 +16,7 @@ export const useSocket = () => {
     setVotingState,
     setVotes,
     setMyVote,
+    setCurrentParticipantId,
     setConnected,
     setError,
   } = useSessionStore();
@@ -37,6 +39,11 @@ export const useSocket = () => {
       setError(error.message);
     });
 
+    socket.on('join_confirmed', ({ participantId }) => {
+      console.log('[useSocket] Join confirmed, my participantId:', participantId);
+      setCurrentParticipantId(participantId);
+    });
+
     socket.on('participant_joined', (participant) => {
       console.log('[useSocket] Participant joined:', participant.name);
       addParticipant(participant);
@@ -57,24 +64,41 @@ export const useSocket = () => {
       addTask(task);
     });
 
-    socket.on('voting_started', ({ taskId, timeout }) => {
-      console.log('[useSocket] voting_started event received:', { taskId, timeout });
+    socket.on('voting_started', ({ taskId, timeout, isRejoin, currentVotes }) => {
+      console.log('[useSocket] voting_started event received:', { taskId, timeout, isRejoin, currentVotesCount: currentVotes?.length });
       
       const currentParticipants = useSessionStore.getState().participants;
       console.log('[useSocket] Current participants count:', currentParticipants.length);
       
       setCurrentTask(taskId);
       
+      // If rejoining, restore voted participants from currentVotes
+      const votedParticipantIds = isRejoin && currentVotes 
+        ? currentVotes.map((v: { participantId: string }) => v.participantId)
+        : [];
+      
+      // Check if current user has already voted (for rejoin scenario)
+      const myParticipantId = useSessionStore.getState().currentParticipantId;
+      const myExistingVote = isRejoin && currentVotes && myParticipantId
+        ? currentVotes.find((v: { participantId: string }) => v.participantId === myParticipantId)
+        : null;
+      
       setVotingState({
         taskId,
-        participantsVoted: [],
+        participantsVoted: votedParticipantIds,
         isRevealed: false,
         remainingTime: timeout,
-        votesCount: 0,
+        votesCount: votedParticipantIds.length,
         participantsCount: currentParticipants.length,
       });
       
-      setMyVote(null);
+      // Restore my vote if I already voted
+      if (myExistingVote) {
+        setMyVote(myExistingVote.value as StoryPoint);
+      } else if (!isRejoin) {
+        setMyVote(null);
+      }
+      
       updateTask(taskId, { status: 'voting' });
       
       console.log('[useSocket] voting_started processing complete');
@@ -144,6 +168,7 @@ export const useSocket = () => {
       socket.off('connect');
       socket.off('disconnect');
       socket.off('error');
+      socket.off('join_confirmed');
       socket.off('participant_joined');
       socket.off('participants_updated');
       socket.off('participant_left');
@@ -159,7 +184,8 @@ export const useSocket = () => {
 
   const joinSession = useCallback((sessionId: string, participantName: string, participantId?: string) => {
     const socket = getSocket();
-    socket.emit('join_session', { sessionId, participantName, participantId });
+    const authorId = getAuthorId(sessionId);
+    socket.emit('join_session', { sessionId, participantName, participantId, authorId });
   }, []);
 
   const createTask = useCallback((sessionId: string, title: string, description?: string) => {

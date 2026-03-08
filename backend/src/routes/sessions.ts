@@ -9,6 +9,7 @@ const INACTIVITY_TIMEOUT = 2 * 60 * 1000;
 
 const createSessionSchema = z.object({
   name: z.string().min(1, 'Session name is required'),
+  authorId: z.string().min(1, 'Author ID is required'),
   votingTimeout: z.number().min(10).max(600).optional().default(120),
   storyPointsScale: z.string().optional(),
 });
@@ -19,6 +20,7 @@ router.post('/', async (req: Request, res: Response) => {
     const session = await prisma.session.create({
       data: {
         name: data.name,
+        authorId: data.authorId,
         votingTimeout: data.votingTimeout,
         storyPointsScale: data.storyPointsScale || JSON.stringify(['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕']),
       },

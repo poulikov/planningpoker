@@ -10,6 +10,7 @@ datasource db {
 model Session {
   id              String        @id @default(uuid())
   name            String
+  authorId        String        // ID of the participant who created the session
   votingTimeout   Int           @default(120)
   storyPointsScale String     @default("[\"0\",\"1\",\"2\",\"3\",\"5\",\"8\",\"13\",\"21\",\"?\",\"☕\"]")
   currentTaskId   String?       @unique

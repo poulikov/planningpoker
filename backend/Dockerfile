@@ -46,5 +46,5 @@ COPY --from=builder /app/dist ./dist
 # Expose port
 EXPOSE 3001
 
-# Start the application (with db push for PostgreSQL)
+# Start the application (with db push for PostgreSQL to handle schema changes)
 CMD sh -c "npx prisma db push --accept-data-loss && npm start"

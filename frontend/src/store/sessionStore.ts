@@ -18,11 +18,13 @@ interface SessionStore {
   votingState: VotingState | null;
   votes: Vote[];
   myVote: StoryPoint | null;
+  currentParticipantId: string | null;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
 
   setSession: (session: Session) => void;
+  setCurrentParticipantId: (id: string | null) => void;
   setParticipants: (participants: Participant[]) => void;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
@@ -47,6 +49,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
   votingState: null,
   votes: [],
   myVote: null,
+  currentParticipantId: null,
   isConnected: false,
   isLoading: false,
   error: null,
@@ -108,6 +111,8 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   setMyVote: (myVote) => set({ myVote }),
 
+  setCurrentParticipantId: (id) => set({ currentParticipantId: id }),
+
   setConnected: (isConnected) => set({ isConnected }),
 
   setLoading: (isLoading) => set({ isLoading }),
@@ -122,6 +127,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
     votingState: null,
     votes: [],
     myVote: null,
+    currentParticipantId: null,
     error: null,
   }),
 }));

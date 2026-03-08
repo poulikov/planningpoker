@@ -5,11 +5,15 @@ import { Timer } from './Timer';
 import { Button } from './Button';
 import { useSessionStore, parseStoryPointsScale } from '../store/sessionStore';
 import { useSocket } from '../hooks/useSocket';
+import { isSessionAuthor } from '../lib/userId';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export const VotingArea = memo(({ task }: { task: Task | null }) => {
   const { votingState, myVote, votes, session } = useSessionStore();
   const { startVoting, submitVote, revealVotes, resetVoting, completeTask } = useSocket();
+  
+  // Check if current user is the session author
+  const isAuthor = session ? isSessionAuthor(session.id, session.authorId) : false;
 
   // Проверяем, разошлись ли оценки (есть ли разные значения)
   const hasDiverged = useMemo(() => {
@@ -83,9 +87,11 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
     );
   }
 
-  // Нет активного голосования - показываем кнопку Start Voting
+  // Нет активного голосования - показываем информацию о задаче
   if (!votingState) {
     console.log('[VotingArea] No voting state, showing start button for task:', task.id);
+    const canStartVoting = session && isSessionAuthor(session.id, session.authorId);
+    
     return (
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-white/20">
         <div className="text-center">
@@ -93,9 +99,15 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
           {task.description && (
             <p className="text-gray-600 mb-4">{task.description}</p>
           )}
-          <Button onClick={handleStartVoting} className="text-lg px-8 py-3">
-            Start Voting
-          </Button>
+          {canStartVoting ? (
+            <Button onClick={handleStartVoting} className="text-lg px-8 py-3">
+              Start Voting
+            </Button>
+          ) : (
+            <p className="text-gray-500 text-sm">
+              Waiting for the session author to start voting...
+            </p>
+          )}
         </div>
       </div>
     );
@@ -143,29 +155,37 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 justify-center mb-4">
-            <p className="w-full text-center text-gray-600 mb-2">Select final story points:</p>
-            {scale.map((value) => (
-              <Button
-                key={value}
-                onClick={() => handleCompleteTask(value)}
-                variant="secondary"
-                className="px-3 py-1 text-sm"
-              >
-                {value}
-              </Button>
-            ))}
-          </div>
-          <div className="flex gap-2 justify-center">
-            <Button 
-              onClick={handleResetVoting} 
-              variant="secondary"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Перезапустить голосование
-            </Button>
-          </div>
+          {isAuthor ? (
+            <>
+              <div className="flex flex-wrap gap-2 justify-center mb-4">
+                <p className="w-full text-center text-gray-600 mb-2">Select final story points:</p>
+                {scale.map((value) => (
+                  <Button
+                    key={value}
+                    onClick={() => handleCompleteTask(value)}
+                    variant="secondary"
+                    className="px-3 py-1 text-sm"
+                  >
+                    {value}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-2 justify-center">
+                <Button 
+                  onClick={handleResetVoting} 
+                  variant="secondary"
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Перезапустить голосование
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-gray-500 text-sm">
+              Waiting for the session author to select the final estimate...
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -185,18 +205,20 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
               />
             ))}
           </div>
-          <div className="flex gap-2 justify-center">
-            {votingState.votesCount > 0 && (
-              <Button onClick={handleRevealVotes} variant="success">
-                Reveal Votes
-              </Button>
-            )}
-            {votingState.votesCount > 0 && (
-              <Button onClick={handleResetVoting} variant="secondary">
-                Reset
-              </Button>
-            )}
-          </div>
+          {isAuthor && (
+            <div className="flex gap-2 justify-center">
+              {votingState.votesCount > 0 && (
+                <Button onClick={handleRevealVotes} variant="success">
+                  Reveal Votes
+                </Button>
+              )}
+              {votingState.votesCount > 0 && (
+                <Button onClick={handleResetVoting} variant="secondary">
+                  Reset
+                </Button>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

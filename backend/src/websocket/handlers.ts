@@ -34,7 +34,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
     socket.emit('pong');
   });
 
-  socket.on('join_session', async ({ sessionId, participantName, participantId }: { sessionId: string; participantName: string; participantId?: string }) => {
+  socket.on('join_session', async ({ sessionId, participantName, participantId, authorId }: { sessionId: string; participantName: string; participantId?: string; authorId?: string }) => {
     try {
       const session = await prisma.session.findUnique({ where: { id: sessionId } });
       if (!session) {
@@ -80,15 +80,53 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
       // Track activity
       lastActivityMap.set(participant.id, new Date());
 
+      // Check if this participant is the session author
+      const isAuthor = session.authorId === participantId || session.authorId === authorId;
+      
       socket.join(sessionId);
       socket.data.sessionId = sessionId;
       socket.data.participantId = participant.id;
       socket.data.participantName = participantName;
+      socket.data.isAuthor = isAuthor;
 
       io.to(sessionId).emit('participant_joined', participant);
 
       const participants = await getActiveParticipants(sessionId, prisma);
       io.to(sessionId).emit('participants_updated', participants);
+
+      // Send confirmation to the joined participant with their ID
+      socket.emit('join_confirmed', { participantId: participant.id });
+
+      // Check if there's active voting and notify the reconnected participant
+      const activeVotingTask = await prisma.task.findFirst({
+        where: { sessionId, status: 'voting' },
+      });
+
+      if (activeVotingTask) {
+        logger.info(`[WS] Active voting found for task ${activeVotingTask.id}, notifying reconnected participant`);
+        
+        // Get current votes for this task
+        const votes = await prisma.vote.findMany({
+          where: { taskId: activeVotingTask.id },
+          include: { participant: true },
+        });
+
+        // Send voting_started event to the reconnected participant only
+        // Include current votes info for proper state restoration
+        socket.emit('voting_started', { 
+          taskId: activeVotingTask.id, 
+          timeout: session.votingTimeout || 120, 
+          participantsCount: participants.length,
+          isRejoin: true, // Flag to indicate this is a rejoin
+          currentVotes: votes.map(v => ({ participantId: v.participantId, value: v.value })),
+        });
+
+        // If votes are already revealed, send votes_revealed event
+        // Note: In current implementation, votes are revealed immediately when timer ends or all voted
+        // But we need to track if votes were revealed. For now, we check if votes exist but timer would have ended
+        // This is a simplified approach - ideally we should store 'isRevealed' in the task
+        logger.info(`[WS] Sent voting state to reconnected participant: ${votes.length} votes`);
+      }
 
       logger.info(`Participant ${participantName} joined session ${sessionId}`);
     } catch (error) {
@@ -99,6 +137,13 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
   socket.on('create_task', async ({ sessionId, title, description }: { sessionId: string; title: string; description?: string }) => {
     try {
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] create_task rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can create tasks' });
+        return;
+      }
+
       const task = await prisma.task.create({
         data: { sessionId, title, description },
       });
@@ -113,6 +158,13 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
   socket.on('start_voting', async ({ sessionId, taskId }: { sessionId: string; taskId: string }) => {
     try {
       logger.info(`[WS] ★★★ start_voting received from participant: ${socket.data.participantName} for task: ${taskId} in session: ${sessionId}`);
+      
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] start_voting rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can start voting' });
+        return;
+      }
       
       // Clean up inactive participants before starting voting
       await cleanupInactiveParticipants(sessionId, io, prisma);
@@ -218,6 +270,13 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
   socket.on('reveal_votes', async ({ sessionId, taskId }: { sessionId: string; taskId: string }) => {
     try {
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] reveal_votes rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can reveal votes' });
+        return;
+      }
+
       logger.info(`[WS] Manual reveal votes requested for task ${taskId}`);
       const timer = timerMap.get(taskId);
       if (timer) {
@@ -233,6 +292,13 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
   socket.on('reset_voting', async ({ sessionId, taskId }: { sessionId: string; taskId: string }) => {
     try {
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] reset_voting rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can reset voting' });
+        return;
+      }
+
       await prisma.vote.deleteMany({ where: { taskId } });
 
       io.to(sessionId).emit('voting_reset', { taskId });
@@ -245,6 +311,13 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
   socket.on('complete_task', async ({ taskId, storyPoints }: { taskId: string; storyPoints: string }) => {
     try {
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] complete_task rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can complete tasks' });
+        return;
+      }
+
       const sessionId = socket.data.sessionId;
 
       await prisma.task.update({

@@ -4,7 +4,7 @@ import { Input } from './Input';
 import { Button } from './Button';
 import { useSessionStore } from '../store/sessionStore';
 import { config } from '../lib/config';
-import { setUserName } from '../lib/userId';
+import { setUserName, setAuthorId, generateUserId } from '../lib/userId';
 
 export const CreateSessionForm = () => {
   const [sessionName, setSessionName] = useState('');
@@ -21,11 +21,14 @@ export const CreateSessionForm = () => {
     setLoading(true);
     setError(null);
 
+    // Generate authorId for the session creator
+    const authorId = generateUserId();
+
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: sessionName, votingTimeout }),
+        body: JSON.stringify({ name: sessionName, authorId, votingTimeout }),
       });
 
       if (!response.ok) {
@@ -35,8 +38,9 @@ export const CreateSessionForm = () => {
       const session = await response.json();
       setSession(session);
 
-      // Save the name for this session (for auto-fill in lobby)
+      // Save the name and authorId for this session
       setUserName(session.id, participantName.trim());
+      setAuthorId(session.id, authorId);
       
       // Don't add name to URL - user will enter it in the lobby
       window.history.pushState({}, '', `/?session=${session.id}`);

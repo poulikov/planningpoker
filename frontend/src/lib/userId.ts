@@ -24,7 +24,21 @@ export function setUserName(sessionId: string, name: string): void {
   localStorage.setItem(`session_${sessionId}_name`, name);
 }
 
+export function getAuthorId(sessionId: string): string | null {
+  return localStorage.getItem(`session_${sessionId}_authorId`);
+}
+
+export function setAuthorId(sessionId: string, authorId: string): void {
+  localStorage.setItem(`session_${sessionId}_authorId`, authorId);
+}
+
+export function isSessionAuthor(sessionId: string, authorId: string): boolean {
+  const savedAuthorId = getAuthorId(sessionId);
+  return savedAuthorId === authorId;
+}
+
 export function clearUserSession(sessionId: string): void {
   localStorage.removeItem(`session_${sessionId}_userId`);
   localStorage.removeItem(`session_${sessionId}_name`);
+  localStorage.removeItem(`session_${sessionId}_authorId`);
 }

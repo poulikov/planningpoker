@@ -8,9 +8,9 @@ const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    // In production with nginx proxy, use current host (empty string)
+    // In production with nginx proxy, use relative URL (same origin)
     // In development, use configured wsUrl
-    const wsUrl = config.wsUrl || window.location.host;
+    const wsUrl = config.wsUrl || window.location.origin;
     socket = io(wsUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,

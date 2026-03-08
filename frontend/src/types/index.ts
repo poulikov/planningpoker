@@ -5,6 +5,7 @@ export type TaskStatus = 'pending' | 'voting' | 'completed';
 export interface Session {
   id: string;
   name: string;
+  authorId: string;
   createdAt: string;
   votingTimeout: number;
   currentTaskId: string | null;
