@@ -1,12 +1,15 @@
 import { create } from 'zustand';
-import { Session, Task, Participant, Vote, VotingState, StoryPoint } from '../types';
+import { Session, Task, Participant, Vote, VotingState } from '../types';
 
-export const parseStoryPointsScale = (scale: string): StoryPoint[] => {
+// Default: Standard Fibonacci (0, 1, 2, 3, 5, 8, 13, 21, ?, ☕)
+const DEFAULT_SCALE = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
+
+export const parseStoryPointsScale = (scale: string): string[] => {
   try {
     const parsed = JSON.parse(scale);
-    return Array.isArray(parsed) ? parsed : ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
+    return Array.isArray(parsed) ? parsed : DEFAULT_SCALE;
   } catch {
-    return ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
+    return DEFAULT_SCALE;
   }
 };
 
@@ -17,7 +20,7 @@ interface SessionStore {
   currentTask: Task | null;
   votingState: VotingState | null;
   votes: Vote[];
-  myVote: StoryPoint | null;
+  myVote: string | null;
   currentParticipantId: string | null;
   isConnected: boolean;
   isLoading: boolean;
@@ -34,7 +37,7 @@ interface SessionStore {
   setCurrentTask: (taskId: string | null) => void;
   setVotingState: (votingState: VotingState | null | ((prev: VotingState | null) => VotingState | null)) => void;
   setVotes: (votes: Vote[]) => void;
-  setMyVote: (vote: StoryPoint | null) => void;
+  setMyVote: (vote: string | null) => void;
   setConnected: (isConnected: boolean) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;

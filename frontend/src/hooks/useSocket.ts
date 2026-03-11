@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { getSocket, disconnectSocket } from '../lib/socket';
 import { useSessionStore } from '../store/sessionStore';
 import { getAuthorId } from '../lib/userId';
-import type { VotingState, StoryPoint } from '../types';
+import type { VotingState } from '../types';
 
 export const useSocket = () => {
   const {
@@ -94,7 +94,7 @@ export const useSocket = () => {
       
       // Restore my vote if I already voted
       if (myExistingVote) {
-        setMyVote(myExistingVote.value as StoryPoint);
+        setMyVote(myExistingVote.value);
       } else if (!isRejoin) {
         setMyVote(null);
       }
@@ -201,7 +201,7 @@ export const useSocket = () => {
   const submitVote = useCallback((taskId: string, value: string) => {
     const socket = getSocket();
     socket.emit('submit_vote', { taskId, value });
-    setMyVote(value as any);
+    setMyVote(value);
   }, []);
 
   const revealVotes = useCallback((taskId: string) => {
