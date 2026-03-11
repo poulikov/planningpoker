@@ -7,6 +7,8 @@ import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
 import { ParticipantsList } from './components/ParticipantsList';
 import { VotingArea } from './components/VotingArea';
+import { EndSessionButton } from './components/EndSessionButton';
+import { SessionSummary } from './components/SessionSummary';
 import { Task } from './types';
 import { config } from './lib/config';
 import { getUserId, getUserName, setUserId, setUserName } from './lib/userId';
@@ -149,6 +151,12 @@ function App() {
     return <CreateSessionForm />;
   }
 
+  // Session is completed - show summary
+  if (session.status === 'completed') {
+    console.log('[App] Session is completed, showing SessionSummary');
+    return <SessionSummary />;
+  }
+
   // SIMPLE LOGIC:
   // - If name AND userId are in URL -> auto-join or show main screen
   // - If NO name or NO userId in URL -> show lobby
@@ -168,13 +176,16 @@ function App() {
       return (
         <div className="min-h-screen p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-white mb-2">{session.name}</h1>
-              <p className="text-white/80 text-sm">
-                Share: <span className="font-mono bg-white/20 px-2 py-1 rounded">
-                  {window.location.origin}/?session={session.id}
-                </span>
-              </p>
+            <div className="mb-8 flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">{session.name}</h1>
+                <p className="text-white/80 text-sm">
+                  Share: <span className="font-mono bg-white/20 px-2 py-1 rounded">
+                    {window.location.origin}/?session={session.id}
+                  </span>
+                </p>
+              </div>
+              <EndSessionButton />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="space-y-6">

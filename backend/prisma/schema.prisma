@@ -14,6 +14,8 @@ model Session {
   votingTimeout   Int           @default(120)
   storyPointsScale String     @default("[\"0\",\"1\",\"2\",\"3\",\"5\",\"8\",\"13\",\"21\",\"?\",\"☕\"]")  // Default: Standard Fibonacci
   currentTaskId   String?       @unique
+  status          String        @default("active")
+  completedAt     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

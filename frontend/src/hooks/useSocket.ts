@@ -19,6 +19,7 @@ export const useSocket = () => {
     setCurrentParticipantId,
     setConnected,
     setError,
+    endSession,
   } = useSessionStore();
 
   useEffect(() => {
@@ -164,6 +165,17 @@ export const useSocket = () => {
       setVotingState(null);
     });
 
+    socket.on('session_completed', ({ sessionId, status, completedAt, tasks }) => {
+      console.log('[useSocket] Session completed:', sessionId, status, completedAt);
+      // Update tasks with fresh data from server
+      if (tasks) {
+        tasks.forEach((task: { id: string; status: string; storyPoints?: string }) => {
+          updateTask(task.id, { status: task.status as 'pending' | 'voting' | 'completed', storyPoints: task.storyPoints });
+        });
+      }
+      endSession();
+    });
+
     return () => {
       socket.off('connect');
       socket.off('disconnect');
@@ -179,6 +191,7 @@ export const useSocket = () => {
       socket.off('voting_reset');
       socket.off('timer_updated');
       socket.off('task_completed');
+      socket.off('session_completed');
     };
   }, []);
 
@@ -219,6 +232,11 @@ export const useSocket = () => {
     socket.emit('complete_task', { taskId, storyPoints });
   }, []);
 
+  const completeSession = useCallback(() => {
+    const socket = getSocket();
+    socket.emit('complete_session', { sessionId: session?.id });
+  }, [session?.id]);
+
   const disconnect = useCallback(() => {
     disconnectSocket();
   }, []);
@@ -231,6 +249,7 @@ export const useSocket = () => {
     revealVotes,
     resetVoting,
     completeTask,
+    completeSession,
     disconnect,
   };
 };

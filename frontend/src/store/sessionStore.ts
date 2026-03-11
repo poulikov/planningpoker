@@ -41,6 +41,7 @@ interface SessionStore {
   setConnected: (isConnected: boolean) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
+  endSession: () => void;
   reset: () => void;
 }
 
@@ -121,6 +122,15 @@ export const useSessionStore = create<SessionStore>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   setError: (error) => set({ error }),
+
+  endSession: () => set((state) => ({
+    session: state.session ? { 
+      ...state.session, 
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+    } : null,
+    votingState: null,
+  })),
 
   reset: () => set({
     session: null,
