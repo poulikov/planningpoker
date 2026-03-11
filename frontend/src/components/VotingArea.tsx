@@ -123,7 +123,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
             <p className="text-gray-600">{task.description}</p>
           )}
         </div>
-        <Timer remainingTime={votingState.remainingTime} />
+        <Timer remainingTime={votingState.remainingTime} totalTime={session?.votingTimeout || 120} />
       </div>
 
       {votingState.isRevealed ? (
@@ -159,16 +159,18 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
             <>
               <div className="flex flex-wrap gap-2 justify-center mb-4">
                 <p className="w-full text-center text-gray-600 mb-2">Select final story points:</p>
-                {scale.map((value) => (
-                  <Button
-                    key={value}
-                    onClick={() => handleCompleteTask(value)}
-                    variant="secondary"
-                    className="px-3 py-1 text-sm"
-                  >
-                    {value}
-                  </Button>
-                ))}
+                {scale
+                  .filter((value) => value !== '?' && value !== '☕')
+                  .map((value) => (
+                    <Button
+                      key={value}
+                      onClick={() => handleCompleteTask(value)}
+                      variant="secondary"
+                      className="px-3 py-1 text-sm"
+                    >
+                      {value}
+                    </Button>
+                  ))}
               </div>
               <div className="flex gap-2 justify-center">
                 <Button 

@@ -135,15 +135,15 @@ export const useSocket = () => {
       console.log('[useSocket] votes_revealed processing complete');
     });
 
-    socket.on('voting_reset', ({ taskId }) => {
-      console.log('[useSocket] Voting reset for task:', taskId);
+    socket.on('voting_reset', ({ taskId, timeout }) => {
+      console.log('[useSocket] Voting reset for task:', taskId, 'timeout:', timeout);
       setVotingState((prev: VotingState | null): VotingState | null => {
         if (!prev || prev.taskId !== taskId) return prev;
         return {
           ...prev,
           participantsVoted: [],
           isRevealed: false,
-          remainingTime: prev.remainingTime || 120,
+          remainingTime: timeout || 120,
           votesCount: 0,
         } as VotingState;
       });
