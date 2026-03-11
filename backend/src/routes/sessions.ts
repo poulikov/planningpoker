@@ -22,7 +22,7 @@ router.post('/', async (req: Request, res: Response) => {
         name: data.name,
         authorId: data.authorId,
         votingTimeout: data.votingTimeout,
-        storyPointsScale: data.storyPointsScale || JSON.stringify(['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕']),
+        storyPointsScale: data.storyPointsScale || JSON.stringify(['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕']), // Default: Standard Fibonacci
       },
     });
     res.json(session);

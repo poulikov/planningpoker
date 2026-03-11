@@ -1,9 +1,9 @@
 import { memo, useMemo } from 'react';
-import { Task, StoryPoint, Vote } from '../types';
-import { VoteCard } from './VoteCard';
+import { Task, Vote } from '../types';
+import { VoteCard, isVotingValue } from './VoteCard';
 import { Timer } from './Timer';
 import { Button } from './Button';
-import { useSessionStore, parseStoryPointsScale } from '../store/sessionStore';
+import { useSessionStore } from '../store/sessionStore';
 import { useSocket } from '../hooks/useSocket';
 import { isSessionAuthor } from '../lib/userId';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -22,7 +22,20 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
     return uniqueValues.size > 1;
   }, [votes]);
 
-  const scale = session ? parseStoryPointsScale(session.storyPointsScale) : ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'] as StoryPoint[];
+  // Default: Standard Fibonacci (0, 1, 2, 3, 5, 8, 13, 21, ?, ☕)
+  const DEFAULT_SCALE = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
+  
+  const scale = useMemo(() => {
+    if (!session?.storyPointsScale) {
+      return DEFAULT_SCALE;
+    }
+    try {
+      const parsed = JSON.parse(session.storyPointsScale);
+      return Array.isArray(parsed) ? parsed : DEFAULT_SCALE;
+    } catch {
+      return DEFAULT_SCALE;
+    }
+  }, [session?.storyPointsScale]);
 
   console.log('[VotingArea] Render:', { task: task?.id, votingState: !!votingState, isRevealed: votingState?.isRevealed });
 
@@ -32,7 +45,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
     }
   };
 
-  const handleSubmitVote = (value: StoryPoint) => {
+  const handleSubmitVote = (value: string) => {
     console.log('[VotingArea] Submitting vote:', value, 'for task:', task?.id);
     if (votingState && task) {
       submitVote(task.id, value);
@@ -53,7 +66,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
     }
   };
 
-  const handleCompleteTask = (storyPoints: StoryPoint) => {
+  const handleCompleteTask = (storyPoints: string) => {
     console.log('[VotingArea] Completing task:', task?.id, 'with points:', storyPoints);
     if (task) {
       completeTask(task.id, storyPoints);
@@ -160,7 +173,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
               <div className="flex flex-wrap gap-2 justify-center mb-4">
                 <p className="w-full text-center text-gray-600 mb-2">Select final story points:</p>
                 {scale
-                  .filter((value) => value !== '?' && value !== '☕')
+                  .filter((value) => isVotingValue(value))
                   .map((value) => (
                     <Button
                       key={value}
