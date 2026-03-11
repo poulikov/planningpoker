@@ -7,6 +7,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { useSocket } from '../hooks/useSocket';
 import { isSessionAuthor } from '../lib/userId';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export const VotingArea = memo(({ task }: { task: Task | null }) => {
   const { votingState, myVote, votes, session } = useSessionStore();
@@ -110,7 +111,9 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
         <div className="text-center">
           <h3 className="text-xl font-semibold mb-2 text-gray-900">{task.title}</h3>
           {task.description && (
-            <p className="text-gray-600 mb-4">{task.description}</p>
+            <div className="mb-4">
+              <MarkdownRenderer content={task.description} />
+            </div>
           )}
           {canStartVoting ? (
             <Button onClick={handleStartVoting} className="text-lg px-8 py-3">
@@ -133,7 +136,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
         <div className="flex-1">
           <h3 className="text-xl font-semibold mb-2">{task.title}</h3>
           {task.description && (
-            <p className="text-gray-600">{task.description}</p>
+            <MarkdownRenderer content={task.description} />
           )}
         </div>
         <Timer remainingTime={votingState.remainingTime} totalTime={session?.votingTimeout || 120} />
