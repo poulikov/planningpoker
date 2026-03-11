@@ -123,7 +123,7 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
             <p className="text-gray-600">{task.description}</p>
           )}
         </div>
-        <Timer remainingTime={votingState.remainingTime} />
+        <Timer remainingTime={votingState.remainingTime} totalTime={session?.votingTimeout || 120} />
       </div>
 
       {votingState.isRevealed ? (

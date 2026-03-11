@@ -169,7 +169,14 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
       // Clean up inactive participants before starting voting
       await cleanupInactiveParticipants(sessionId, io, prisma);
       
-      const timeout = 120;
+      // Get session to use configured voting timeout
+      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      if (!session) {
+        socket.emit('error', { message: 'Session not found' });
+        return;
+      }
+      
+      const timeout = session.votingTimeout || 120;
 
       await prisma.session.update({
         where: { id: sessionId },
@@ -299,10 +306,37 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
         return;
       }
 
+      // Clear existing timer if any
+      const existingTimer = timerMap.get(taskId);
+      if (existingTimer) {
+        clearInterval(existingTimer);
+        timerMap.delete(taskId);
+      }
+
       await prisma.vote.deleteMany({ where: { taskId } });
 
-      io.to(sessionId).emit('voting_reset', { taskId });
-      logger.info(`Voting reset for task ${taskId}`);
+      // Get session to use configured voting timeout
+      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      const timeout = session?.votingTimeout || 120;
+      
+      // Restart the timer
+      let remainingTime = timeout;
+      
+      const timer = setInterval(() => {
+        remainingTime--;
+        io.to(sessionId).emit('timer_updated', { taskId, remainingTime });
+
+        if (remainingTime <= 0) {
+          clearInterval(timer);
+          timerMap.delete(taskId);
+          revealVotes(sessionId, taskId, prisma, io);
+        }
+      }, 1000);
+
+      timerMap.set(taskId, timer);
+
+      io.to(sessionId).emit('voting_reset', { taskId, timeout });
+      logger.info(`Voting reset for task ${taskId}, timer restarted with ${timeout}s`);
     } catch (error) {
       logger.error('Error resetting voting:', error);
       socket.emit('error', { message: 'Failed to reset voting' });
