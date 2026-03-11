@@ -49,6 +49,8 @@ export const getScaleName = (scaleId: VotingScaleId): string => {
 
 export type TaskStatus = 'pending' | 'voting' | 'completed';
 
+export type SessionStatus = 'active' | 'completed';
+
 export interface Session {
   id: string;
   name: string;
@@ -57,6 +59,8 @@ export interface Session {
   votingTimeout: number;
   currentTaskId: string | null;
   storyPointsScale: string;
+  status: SessionStatus;
+  completedAt?: string;
 }
 
 export interface Task {

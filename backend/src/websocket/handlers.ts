@@ -370,6 +370,56 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
     }
   });
 
+  socket.on('complete_session', async ({ sessionId }: { sessionId: string }) => {
+    try {
+      // Check if the user is the session author
+      if (!socket.data.isAuthor) {
+        logger.warn(`[WS] complete_session rejected: ${socket.data.participantName} is not the session author`);
+        socket.emit('error', { message: 'Only the session author can complete the session' });
+        return;
+      }
+
+      // Get session to check status
+      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      if (!session) {
+        socket.emit('error', { message: 'Session not found' });
+        return;
+      }
+
+      if (session.status === 'completed') {
+        socket.emit('error', { message: 'Session is already completed' });
+        return;
+      }
+
+      // Update session status
+      const updatedSession = await prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        include: {
+          tasks: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      // Notify all participants that session is completed
+      io.to(sessionId).emit('session_completed', { 
+        sessionId, 
+        status: 'completed',
+        completedAt: updatedSession.completedAt,
+        tasks: updatedSession.tasks,
+      });
+
+      logger.info(`Session ${sessionId} completed by ${socket.data.participantName}`);
+    } catch (error) {
+      logger.error('Error completing session:', error);
+      socket.emit('error', { message: 'Failed to complete session' });
+    }
+  });
+
   socket.on('disconnect', async () => {
     const sessionId = socket.data.sessionId;
     const participantId = socket.data.participantId;
