@@ -110,11 +110,13 @@ export const VotingArea = memo(({ task }: { task: Task | null }) => {
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-white/20">
         <div className="text-center">
           <h3 className="text-xl font-semibold mb-2 text-gray-900">{task.title}</h3>
-          {task.description && (
-            <div className="mb-4">
-              <MarkdownRenderer content={task.description} />
-            </div>
-          )}
+        </div>
+        {task.description && (
+          <div className="mb-4 text-left">
+            <MarkdownRenderer content={task.description} />
+          </div>
+        )}
+        <div className="text-center mt-4">
           {canStartVoting ? (
             <Button onClick={handleStartVoting} className="text-lg px-8 py-3">
               Start Voting
