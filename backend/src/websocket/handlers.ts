@@ -11,6 +11,7 @@ const lastActivityMap = new Map<string, Date>();
 
 export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaClient) {
   const timerMap = new Map<string, NodeJS.Timeout>();
+  const revealedTasks = new Set<string>();
 
   // Heartbeat handler
   socket.on('ping', async () => {
@@ -190,6 +191,9 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
       await prisma.vote.deleteMany({ where: { taskId } });
 
+      // Reset revealed status for this task when starting new voting
+      revealedTasks.delete(taskId);
+
       logger.info(`[WS] Emitting voting_started to session ${sessionId}`);
       
       const activeParticipants = await getActiveParticipants(sessionId, prisma);
@@ -197,13 +201,19 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
 
       let remainingTime = timeout;
       const timer = setInterval(() => {
+        // Don't send updates if votes were already revealed (race condition protection)
+        if (revealedTasks.has(taskId)) {
+          clearInterval(timer);
+          return;
+        }
+
         remainingTime--;
         io.to(sessionId).emit('timer_updated', { taskId, remainingTime });
 
         if (remainingTime <= 0) {
           clearInterval(timer);
           timerMap.delete(taskId);
-          revealVotes(sessionId, taskId, prisma, io);
+          revealVotes(sessionId, taskId, prisma, io, revealedTasks);
         }
       }, 1000);
 
@@ -265,7 +275,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
           clearInterval(timer);
           timerMap.delete(taskId);
         }
-        revealVotes(sessionId, taskId, prisma, io);
+        revealVotes(sessionId, taskId, prisma, io, revealedTasks);
       }
 
       logger.info(`Vote submitted for task ${taskId}`);
@@ -290,7 +300,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
         clearInterval(timer);
         timerMap.delete(taskId);
       }
-      revealVotes(sessionId, taskId, prisma, io);
+      revealVotes(sessionId, taskId, prisma, io, revealedTasks);
     } catch (error) {
       logger.error('Error revealing votes:', error);
       socket.emit('error', { message: 'Failed to reveal votes' });
@@ -319,17 +329,26 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
       const session = await prisma.session.findUnique({ where: { id: sessionId } });
       const timeout = session?.votingTimeout || 120;
       
+      // Reset revealed status for this task when resetting voting
+      revealedTasks.delete(taskId);
+      
       // Restart the timer
       let remainingTime = timeout;
       
       const timer = setInterval(() => {
+        // Don't send updates if votes were already revealed (race condition protection)
+        if (revealedTasks.has(taskId)) {
+          clearInterval(timer);
+          return;
+        }
+
         remainingTime--;
         io.to(sessionId).emit('timer_updated', { taskId, remainingTime });
 
         if (remainingTime <= 0) {
           clearInterval(timer);
           timerMap.delete(taskId);
-          revealVotes(sessionId, taskId, prisma, io);
+          revealVotes(sessionId, taskId, prisma, io, revealedTasks);
         }
       }, 1000);
 
@@ -465,7 +484,7 @@ export function setupSocketHandlers(socket: Socket, io: Server, prisma: PrismaCl
               clearInterval(timer);
               timerMap.delete(currentTask.id);
             }
-            revealVotes(sessionId, currentTask.id, prisma, io);
+            revealVotes(sessionId, currentTask.id, prisma, io, revealedTasks);
           }
         }
       } catch (error) {
@@ -541,8 +560,13 @@ async function cleanupInactiveParticipants(sessionId: string, io: Server, prisma
   }
 }
 
-async function revealVotes(sessionId: string, taskId: string, prismaClient: PrismaClient, io: Server) {
+async function revealVotes(sessionId: string, taskId: string, prismaClient: PrismaClient, io: Server, revealedTasks?: Set<string>) {
   logger.info(`[WS] Revealng votes for task ${taskId}`);
+
+  // Mark task as revealed to prevent stale timer updates
+  if (revealedTasks) {
+    revealedTasks.add(taskId);
+  }
 
   const votes = await prismaClient.vote.findMany({
     where: { taskId },
