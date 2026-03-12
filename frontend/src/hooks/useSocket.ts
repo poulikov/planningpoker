@@ -155,6 +155,8 @@ export const useSocket = () => {
     socket.on('timer_updated', ({ taskId, remainingTime }) => {
       setVotingState((prev: VotingState | null): VotingState | null => {
         if (!prev || prev.taskId !== taskId) return prev;
+        // Ignore timer updates if votes are already revealed (race condition protection)
+        if (prev.isRevealed) return prev;
         return { ...prev, remainingTime } as VotingState;
       });
     });
