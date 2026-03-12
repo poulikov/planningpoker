@@ -257,6 +257,7 @@ Extensive console.log statements for debugging:
 5. **VotingState Structure Bug:** Fixed nested votingState in votes_revealed handler (was creating state.votingState.votingState)
 6. **Participant Duplication:** Fixed by adding deduplication in setParticipants and addParticipant store methods
 7. **Syntax Error:** Fixed hanging code after votes_revealed handler in useSocket.ts
+8. **Timer Auto-Reveal Race Condition:** Fixed by adding guard in timer_updated handler to ignore updates when isRevealed=true, and tracking revealed tasks on server to prevent sending stale timer updates
 
 ### Manual Testing Steps
 1. Create session at http://localhost:5173
