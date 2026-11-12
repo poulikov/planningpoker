@@ -1,0 +1,38 @@
+name: Export Dependabot alerts
+
+on:
+  workflow_dispatch:
+
+# The fine-grained PAT below supplies only Dependabot alerts read access.
+# The workflow does not need repository permissions for GITHUB_TOKEN.
+permissions: {}
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Export open alerts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_ALERTS_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::Add the DEPENDABOT_ALERTS_TOKEN repository Actions secret with Dependabot alerts read access."
+            exit 1
+          fi
+          gh api --paginate --slurp \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+            --jq 'add // []' > "${RUNNER_TEMP}/dependabot-alerts.json"
+          jq -e 'type == "array"' "${RUNNER_TEMP}/dependabot-alerts.json" > /dev/null
+          jq 'length' "${RUNNER_TEMP}/dependabot-alerts.json"
+
+      - name: Upload alerts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependabot-alerts
+          path: ${{ runner.temp }}/dependabot-alerts.json
+          if-no-files-found: error
+          retention-days: 3
