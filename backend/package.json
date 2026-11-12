@@ -13,26 +13,36 @@
     "prisma:studio": "prisma studio",
     "lint": "eslint . --ext .ts"
   },
-  "keywords": ["planning", "poker", "agile", "websocket"],
+  "keywords": [
+    "planning",
+    "poker",
+    "agile",
+    "websocket"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.22.3",
-    "socket.io": "^4.7.5",
+    "@prisma/client": "^5.9.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "@prisma/client": "^5.9.1",
-    "zod": "^3.22.4"
+    "express": "^4.22.3",
+    "socket.io": "^4.7.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.11.16",
-    "typescript": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^8.72.2",
+    "@typescript-eslint/parser": "^8.72.2",
+    "eslint": "^8.56.0",
     "prisma": "^5.9.1",
     "tsx": "^4.22.4",
-    "eslint": "^8.56.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1"
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.8"
+    }
   }
 }

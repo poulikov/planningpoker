@@ -28,7 +28,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.json(session);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
+      res.status(400).json({ error: error.issues });
     } else {
       console.error('Error creating session:', error);
       res.status(500).json({ error: 'Failed to create session' });
